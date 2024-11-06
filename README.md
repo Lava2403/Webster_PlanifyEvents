@@ -18,7 +18,7 @@ This is a web-based To-Do List application designed to help users organize and p
 - User-Friendly Interface: Intuitive and clean UI designed for easy navigation.  
 
 ## Tech Stack
-- Frontend: ReactJS, VanillaJS
+- Frontend: HTML, CSS, JavaScript
 -  Backend: Node.js, Express
 - Database: MongoDB (for storing task data)
 
