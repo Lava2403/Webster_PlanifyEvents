@@ -22,5 +22,3 @@ This is a web-based To-Do List application designed to help users organize and p
 -  Backend: Node.js, Express
 - Database: MongoDB (for storing task data)
 
-## Other Libraries:   
-Bootstrap, FontAwesome for icons
