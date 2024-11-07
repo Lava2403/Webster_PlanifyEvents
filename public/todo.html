@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>To-Do List</title>
+    <link rel="stylesheet" href="/todo.css" />
+  </head>
+  <body>
+    <!-- Navbar with title and logout button -->
+    <nav class="navbar">
+      <div class="navbar-content">
+        <div id="usernameTitle" class="title">Username's To-Do List</div>
+        <button id="logoutButton" class="logout-button">Logout</button>
+      </div>
+    </nav>
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+
+    <div class="app">
+      <div class="todo-container">
+        <h2>My To-Do List</h2>
+        <u1 id="todolist"></u1>
+        <div class="task-input">
+          <div class="input-group">
+            <i class="fas fa-heading"></i>
+            <input
+              type="text"
+              id="taskTitle"
+              placeholder="Enter title"
+              required
+            />
+          </div>
+          <div class="input-group">
+            <i class="fas fa-align-left"></i>
+            <input
+              type="text"
+              id="taskDescription"
+              placeholder="Enter description"
+            />
+          </div>
+          <div class="input-group">
+            <i class="fas fa-calendar-alt"></i>
+            <input type="date" id="taskDeadline" required />
+          </div>
+          <div class="input-group">
+            <i class="fas fa-tags"></i>
+            <input
+              type="text"
+              id="taskTags"
+              placeholder="Enter tags, separated by commas"
+            />
+          </div>
+          <div class="input-group">
+            <select id="taskPriority">
+              <option value="High">High</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+          <button id="addTaskButton">
+            <i class="fas fa-plus"></i> Add Task
+          </button>
+        </div>
+      </div>
+      <ul class="task-list" id="taskList"></ul>
+    </div>
+
+    <script>
+      let tasks = [];
+
+      // Check if the user is authenticated when the page loads
+      async function checkAuthentication() {
+        try {
+          const authResponse = await fetch("/api/check-auth");
+          if (authResponse.ok) {
+            fetchUsername();
+          } else {
+            window.location.href = "/login";
+          }
+        } catch (error) {
+          console.error("Authentication check failed:", error);
+          window.location.href = "/login";
+        }
+      }
+
+      async function fetchUsername() {
+        try {
+          const response = await fetch("/api/get-username", {
+            method: "GET",
+            credentials: "same-origin", // Ensure session cookie is sent
+          });
+          if (response.ok) {
+            const data = await response.json();
+            document.getElementById(
+              "usernameTitle"
+            ).innerText = `${data.name}'s To-Do List`; // Proper template literal syntax
+          } else {
+            document.getElementById("usernameTitle").innerText =
+              "My To-Do List";
+          }
+        } catch (error) {
+          console.error("Error fetching username:", error);
+        }
+      }
+
+      // Call the function on page load
+      window.onload = async () => {
+        await checkAuthentication();
+        await fetchUsername();
+        fetchTasks();
+      };
+
+      // Logout function
+      document
+        .getElementById("logoutButton")
+        .addEventListener("click", async () => {
+          try {
+            await fetch("/logout", { method: "POST" });
+            window.location.href = "/login";
+          } catch (error) {
+            console.error("Logout failed:", error);
+          }
+        });
+
+      // Fetch tasks from the server
+      async function fetchTasks() {
+        try {
+          const response = await fetch("/api/todos");
+          if (response.ok) {
+            tasks = await response.json();
+            renderTasks();
+          } else {
+            alert("Failed to fetch tasks. Please log in.");
+          }
+        } catch (error) {
+          console.error("Error fetching tasks:", error);
+        }
+      }
+
+      // Function to render tasks
+      function renderTasks() {
+        const taskList = document.getElementById("taskList");
+        taskList.innerHTML = "";
+        tasks.forEach((task, index) => {
+          const li = document.createElement("li");
+          li.className = task.completed ? "completed" : "";
+
+          const tagsDisplay = task.tags
+            ? task.tags
+                .map((tag) => `<span class="tag">${tag}</span>`)
+                .join(" ")
+            : "";
+
+          li.innerHTML = `
+          <input type="checkbox" onclick="toggleTaskCompletion(${index})" ${
+            task.completed ? "checked" : ""
+          }>
+          <span>${task.title} - ${
+            task.description ? task.description : ""
+          } <span class="deadline">(${task.deadline})</span></span>
+          <span class="priority">${
+            task.priority
+          }</span> <!-- Priority Display -->
+          <div class="tags">${tagsDisplay}</div>
+          <button onclick="updateTask(${index})">Edit</button>
+          <button onclick="deleteTask(${index})">Delete</button>
+        `;
+          taskList.appendChild(li);
+        });
+      }
+
+      // Function to add a task
+      document
+        .getElementById("addTaskButton")
+        .addEventListener("click", async () => {
+          const title = document.getElementById("taskTitle").value;
+          const description = document.getElementById("taskDescription").value;
+          const deadline = document.getElementById("taskDeadline").value;
+          const tags = document
+            .getElementById("taskTags")
+            .value.split(",")
+            .map((tag) => tag.trim());
+          const priority = document.getElementById("taskPriority").value;
+
+          if (title && deadline) {
+            try {
+              const response = await fetch("/api/todos", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  title,
+                  description,
+                  deadline,
+                  tags,
+                  priority,
+                  completed: false,
+                }),
+              });
+
+              if (!response.ok) {
+                throw new Error("Failed to add task");
+              }
+
+              const newTask = await response.json();
+              tasks.push(newTask);
+              renderTasks();
+
+              document.getElementById("taskTitle").value = "";
+              document.getElementById("taskDescription").value = "";
+              document.getElementById("taskDeadline").value = "";
+              document.getElementById("taskTags").value = "";
+              document.getElementById("taskPriority").value = "Medium";
+            } catch (error) {
+              console.error("Error adding task:", error);
+            }
+          } else {
+            alert("Please enter both title and deadline.");
+          }
+        });
+
+      // Function to delete a task
+      async function deleteTask(index) {
+        const task = tasks[index];
+        try {
+          const response = await fetch(`/api/todos/${task._id}`, {
+            method: "DELETE",
+          });
+          if (response.ok) {
+            tasks.splice(index, 1); // Remove task from local array
+            renderTasks();
+          } else {
+            alert("Error deleting task");
+          }
+        } catch (error) {
+          console.error("Error:", error);
+        }
+      }
+
+      // Function to edit a task
+      async function updateTask(index) {
+        const task = tasks[index];
+        const title = prompt("Update task title:", task.title);
+        const deadline = prompt("Update task deadline:", task.deadline);
+        if (title && deadline) {
+          try {
+            const response = await fetch(`/api/todos/${task._id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title,
+                deadline,
+                completed: task.completed,
+              }),
+            });
+            if (response.ok) {
+              tasks[index] = await response.json(); // Update task in local array
+              renderTasks();
+            } else {
+              alert("Error updating task");
+            }
+          } catch (error) {
+            console.error("Error:", error);
+          }
+        }
+      }
+
+      //Function to toggle task completion status
+      async function toggleTaskCompletion(index) {
+        const task = tasks[index];
+        try {
+          const response = await fetch(`/api/todos/${task._id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ completed: !task.completed }), // Toggle the completed status
+          });
+          if (response.ok) {
+            task.completed = !task.completed; // Update local state
+            renderTasks(); // Re-render tasks
+          } else {
+            alert("Error updating task completion status.");
+          }
+        } catch (error) {
+          console.error("Error:", error);
+        }
+      }
+
+      // Load tasks when the page loads
+      fetchTasks();
+    </script>
+  </body>
+</html>
