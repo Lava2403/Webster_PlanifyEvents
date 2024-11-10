@@ -7,11 +7,15 @@ This is a web-based To-Do List application designed to help users organize and p
 ## Features
 - CRUD Operations: Create, read, update, and delete tasks seamlessly.  
 
-- Task Categorization: Organize tasks by customizable categories, such as "Lyrics," "Beats," "Instruments," etc.  
-
 - Task Prioritization: Set priority levels (e.g., High, Medium, Low) to manage and visualize the importance of tasks.  
 
-- Due Date Management: Add due dates to tasks for time-sensitive planning.  
+- Due Date Management: Add due dates to tasks for time-sensitive planning.
+
+- Sorting tasks: Based on set priority
+
+- Sorting tasks: Based on deadlines
+
+- Notification for tasks due is 2 days or lesser. 
 
 - Responsive Design: Works smoothly on desktop and mobile devices for on-the-go task management.  
 
