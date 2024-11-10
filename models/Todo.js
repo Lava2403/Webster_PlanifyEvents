@@ -11,6 +11,8 @@ const todoSchema = new mongoose.Schema({
     enum: ["High", "Medium", "Low"],
     default: "Medium",
   }, // New field for priority
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // Added userId field
+
 });
 
 module.exports = mongoose.model("Todo", todoSchema);

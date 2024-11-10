@@ -1,17 +1,14 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const path = require("path");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const hbs = require("hbs");
 const cors = require("cors");
 const session = require("express-session");
 require("dotenv").config();
 
-// Import your Todo model
 const Todo = require("./models/Todo");
-
-// Import your login/signup model (assumed as "User")
-const User = require("./models/User"); // Adjust to match your actual User model file
+const User = require("./models/User");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -23,7 +20,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(
   session({
-    secret: "your-secret-key", // A random string for signing the session ID cookie
+    secret: "your-secret-key",
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false }, // Set to `true` if using HTTPS
@@ -43,16 +40,18 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((error) => console.error("MongoDB connection error:", error));
 
+  const isAuthenticated = (req, res, next) => {
+    if (req.session.userId) {
+      next();
+    } else {
+      res.status(401).json({ message: "Unauthorized" });
+    }
+  };
+
 /* --------- Login & Signup Routes --------- */
 
-// Serve the main page
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "HomePage.html"));
-});
-
-// Render login and signup pages
-app.get("/", (req, res) => {
-  res.render("home", { userName: "Your Name", lists: [] });
 });
 
 app.get("/login", (req, res) => {
@@ -80,14 +79,11 @@ app.post("/login", async (req, res) => {
   try {
     const user = await User.findOne({ name: req.body.name });
     if (user) {
-      const passwordMatch = await bcrypt.compare(
-        req.body.password,
-        user.password
-      );
+      const passwordMatch = await bcrypt.compare(req.body.password, user.password);
       if (passwordMatch) {
-        req.session.userId = user._id; // Store user ID in session
-        req.session.name = user.name; // Store username in session
-        res.redirect("/todo.html"); // Redirect to the To-Do page after login
+        req.session.userId = user._id;
+        req.session.name = user.name;
+        res.redirect("/todo.html");
       } else {
         res.render("login", { errorMessage: "Incorrect password" });
       }
@@ -95,15 +91,12 @@ app.post("/login", async (req, res) => {
       res.render("login", { errorMessage: "No such user found" });
     }
   } catch (error) {
-    res.render("login", {
-      errorMessage: "An error occurred, please try again",
-    });
+    res.render("login", { errorMessage: "An error occurred, please try again" });
   }
 });
 
 /* --------- To-Do List CRUD Routes --------- */
 
-// Serve the to-do list page
 app.get("/todo.html", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "todo.html"));
 });
@@ -116,18 +109,17 @@ app.get("/api/check-auth", (req, res) => {
   }
 });
 
-// Example backend (Node.js with Express)
-app.get('/api/get-username', (req, res) => {
-    if (req.session && req.session.name) {
-      res.json({ name: req.session.name }); // Ensure it returns 'name'
-    } else {
-      res.status(401).send('Unauthorized');
-    }
-  });
+// Get the logged-in user's name
+app.get("/api/get-username", (req, res) => {
+  if (req.session && req.session.name) {
+    res.json({ name: req.session.name });
+  } else {
+    res.status(401).send("Unauthorized");
+  }
+});
 
 // Create a new to-do
-app.post("/api/todos", async (req, res) => {
-  console.log(req.body);
+app.post("/api/todos", isAuthenticated,async (req, res) => {
   try {
     const newTodo = new Todo({
       title: req.body.title,
@@ -135,7 +127,8 @@ app.post("/api/todos", async (req, res) => {
       deadline: req.body.deadline,
       completed: req.body.completed || false,
       tags: req.body.tags || [],
-      priority: req.body.priority || "Medium", // Set default to "Medium" if not provided
+      priority: req.body.priority || "Medium",
+      userId: req.session.userId, // Associate task with user
     });
     const savedTodo = await newTodo.save();
     res.status(201).json(savedTodo);
@@ -144,10 +137,10 @@ app.post("/api/todos", async (req, res) => {
   }
 });
 
-// Get all to-dos
-app.get("/api/todos", async (req, res) => {
+// Get all to-dos for the logged-in user
+app.get("/api/todos", isAuthenticated, async (req, res) => {
   try {
-    const todos = await Todo.find();
+    const todos = await Todo.find({ userId: req.session.userId });
     res.json(todos);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -155,26 +148,60 @@ app.get("/api/todos", async (req, res) => {
 });
 
 // Update a to-do
-app.put("/api/todos/:id", async (req, res) => {
+app.put("/api/todos/:id", isAuthenticated, async (req, res) => {
   try {
-    const updatedTodo = await Todo.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    const updatedTodo = await Todo.findOneAndUpdate(
+      { _id: req.params.id, userId: req.session.userId },
+      req.body,
+      { new: true }
+    );
+    if (updatedTodo) {
+      res.json(updatedTodo);
+    } else {
+      res.status(404).json({ message: "Todo not found" });
+    }
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
+
+app.put("/api/todos/:id", isAuthenticated, async (req, res) => {
+  try {
+    const updatedTodo = await Todo.findOneAndUpdate(
+      { _id: req.params.id, userId: req.session.userId },
+      req.body,
+      { new: true }
+    );
     res.json(updatedTodo);
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
 });
 
-// Delete a to-do
+
+// Delete a to-do with a confirmation prompt
 app.delete("/api/todos/:id", async (req, res) => {
   try {
-    await Todo.findByIdAndDelete(req.params.id);
-    res.json({ message: "Todo deleted" });
+    const deletedTodo = await Todo.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.session.userId,
+    });
+    if (deletedTodo) {
+      res.json({ message: "Todo deleted" });
+    } else {
+      res.status(404).json({ message: "Todo not found" });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
+
+app.post("/api/logout", (req, res) => {
+  req.session.destroy();
+  res.redirect("/login");
+});
+
 
 /* --------- Start the Server --------- */
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
